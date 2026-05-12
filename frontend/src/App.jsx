@@ -51,9 +51,14 @@ function App() {
     };
   }, []);
 
+  const [isConnecting, setIsConnecting] = useState(false);
+  const subscriptionsRef = useRef([]);
+
   const connect = (e) => {
     e.preventDefault();
-    if (!username.trim()) return;
+    if (!username.trim() || isConnecting) return;
+    
+    setIsConnecting(true);
 
     const socket = new SockJS(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080/ws');
     const client = new Client({
@@ -66,10 +71,15 @@ function App() {
 
     client.onConnect = () => {
       setConnected(true);
+      setIsConnecting(false);
+      
+      // Clear old subscriptions to prevent duplicate messages on reconnect
+      subscriptionsRef.current.forEach(sub => sub.unsubscribe());
+      subscriptionsRef.current = [];
       
       // Subscribe to all channels
       CHANNELS.forEach(channel => {
-        client.subscribe(`/topic/${channel.id}`, (message) => {
+        const sub = client.subscribe(`/topic/${channel.id}`, (message) => {
           const receivedMsg = JSON.parse(message.body);
           const ch = receivedMsg.channel || channel.id; 
           
@@ -107,22 +117,26 @@ function App() {
             }));
           }
         });
+        subscriptionsRef.current.push(sub);
       });
 
       // Subscribe to metrics
-      client.subscribe('/topic/metrics', (message) => {
+      const metricsSub = client.subscribe('/topic/metrics', (message) => {
         setMetrics(JSON.parse(message.body));
       });
+      subscriptionsRef.current.push(metricsSub);
 
       // Subscribe to leaderboard
-      client.subscribe('/topic/leaderboard', (message) => {
+      const lbSub = client.subscribe('/topic/leaderboard', (message) => {
         setLeaderboard(JSON.parse(message.body));
       });
+      subscriptionsRef.current.push(lbSub);
 
       // Subscribe to security bans
-      client.subscribe('/topic/security', (message) => {
+      const secSub = client.subscribe('/topic/security', (message) => {
         setBannedUsers(JSON.parse(message.body));
       });
+      subscriptionsRef.current.push(secSub);
 
       // Send JOIN to general-chat
       client.publish({
