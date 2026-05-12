@@ -1,16 +1,16 @@
-# Stage 1: Build the application using Maven Wrapper
-FROM eclipse-temurin:17-jdk-alpine AS build
+# Stage 1: Build the application using Maven image (avoids Windows line-ending issues)
+FROM maven:3.9.6-eclipse-temurin-17-alpine AS build
 WORKDIR /app
 
-# Copy the entire backend directory (including .mvn and mvnw)
-COPY . .
+# Copy the pom.xml and source code
+COPY pom.xml .
+COPY src ./src
 
-# Ensure maven wrapper is executable and limit memory to prevent OOM on Render Free Tier
-RUN chmod +x ./mvnw
+# Limit Maven memory to prevent OOM on Render Free Tier
 ENV MAVEN_OPTS="-Xmx256m"
 
 # Build the application
-RUN ./mvnw clean package -DskipTests
+RUN mvn clean package -DskipTests
 
 # Stage 2: Create the runtime image
 FROM eclipse-temurin:17-jdk-alpine
